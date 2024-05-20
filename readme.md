@@ -36,6 +36,3 @@ HTML
 CSS
 JavaScript
 
-## Whats Left
-
-Showing dynamic distance and angle labels while mouse drag.
