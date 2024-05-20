@@ -7,7 +7,7 @@
     <style>
       body {
         display: flex;
-        justify-content: center;
+        flex-direction: column;
         align-items: center;
         height: 100vh;
         margin: 0;
@@ -16,7 +16,8 @@
       canvas {
         border: 1px solid black;
       }
-      .distanceLabel {
+      .distanceLabel,
+      .angleLabel {
         position: absolute;
         background-color: white;
         border: 1px solid black;
@@ -24,9 +25,19 @@
         font-size: 12px;
         transform: translate(-50%, 0%);
       }
+      .button-container {
+        margin-bottom: 10px;
+      }
+      .button-container button {
+        margin: 0 5px;
+      }
     </style>
   </head>
   <body>
+    <div class="button-container">
+      <button id="resetCanvas">Reset Canvas</button>
+      <button id="undoAction">Undo</button>
+    </div>
     <canvas id="myCanvas" width="800" height="600"></canvas>
     <script>
       window.onload = function () {
@@ -35,12 +46,14 @@
         const segments = []; // Array to hold line segments
         const points = []; // Array to hold points
         const distanceLabels = []; // Array to hold distance labels
+        const angleLabels = []; // Array to hold angle labels
         let startPoint = null;
         let isDragging = false;
-        let isFirstSegment = true; // Flag to track the first segment
-        let pointCounter = 0; // Counter for points
-        const SNAP_DISTANCE = 10; // Distance to snap to existing points
+        let isPointDragging = false;
+        let draggedPoint = null;
+        const SNAP_DISTANCE = 15; // Distance to snap to existing points
         const PIXEL_TO_CM = 0.0264;
+        let pointCounter = 0; // Counter for points
 
         // Function to draw a line segment
         function drawSegment(start, end) {
@@ -80,7 +93,6 @@
           }
 
           // Draw origin point labeled 'O'
-
           ctx.strokeStyle = "black";
           ctx.lineWidth = 1;
         }
@@ -94,6 +106,10 @@
           }
           for (let i = 0; i < points.length; i++) {
             drawPointWithLabel(points[i], String.fromCharCode(65 + i));
+          }
+          updateDistanceLabels(); // Ensure distance labels are updated
+          if (isShapeClosed()) {
+            updateAngleLabels(); // Ensure angle labels are updated only when shape is closed
           }
         }
 
@@ -124,6 +140,7 @@
           );
           return distance < SNAP_DISTANCE;
         }
+
         // Function to create a distance label
         function createDistanceLabel(distance, x, y) {
           const distanceLabel = document.createElement("div");
@@ -137,21 +154,108 @@
 
         // Function to update all distance labels
         function updateDistanceLabels() {
-          for (let i = 0; i < distanceLabels.length; i++) {
+          for (let i = 0; i < segments.length; i++) {
             const segment = segments[i];
             const label = distanceLabels[i];
-            const midX =
-              (segment.start.x + segment.end.x) / 2 + canvas.offsetLeft;
-            const midY =
-              (segment.start.y + segment.end.y) / 2 + canvas.offsetTop;
-            const distance =
-              Math.sqrt(
-                Math.pow(segment.end.x - segment.start.x, 2) +
-                  Math.pow(segment.end.y - segment.start.y, 2)
-              ) * PIXEL_TO_CM;
-            label.style.left = `${midX}px`;
-            label.style.top = `${midY}px`;
-            label.textContent = `${distance.toFixed(2)} cm`;
+            if (label) {
+              const midX =
+                (segment.start.x + segment.end.x) / 2 + canvas.offsetLeft;
+              const midY =
+                (segment.start.y + segment.end.y) / 2 + canvas.offsetTop;
+              const distance =
+                Math.sqrt(
+                  Math.pow(segment.end.x - segment.start.x, 2) +
+                    Math.pow(segment.end.y - segment.start.y, 2)
+                ) * PIXEL_TO_CM;
+              label.style.left = `${midX}px`;
+              label.style.top = `${midY}px`;
+              label.textContent = `${distance.toFixed(2)} cm`;
+            }
+          }
+        }
+
+        // Function to calculate the angle between two vectors
+        function calculateAngle(p1, p2, p3) {
+          const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+          const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+          const dotProduct = v1.x * v2.x + v1.y * v2.y;
+          const magnitude1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+          const magnitude2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+          const angle = Math.acos(dotProduct / (magnitude1 * magnitude2));
+          return (angle * 180) / Math.PI;
+        }
+
+        // Function to draw an arc for an angle
+        function drawAngleArc(p1, p2, p3, radius = 20) {
+          const angle1 = Math.atan2(p1.y - p2.y, p1.x - p2.x);
+          const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+
+          // Ensure the arc is drawn counterclockwise
+          let startAngle = angle1;
+          let endAngle = angle2;
+          if (startAngle > endAngle) {
+            endAngle += 2 * Math.PI;
+          }
+
+          // Calculate the midpoint angle
+          const midAngle = (startAngle + endAngle) / 2;
+
+          // Determine the correct direction to ensure the arc is inside
+          const isOutside = endAngle - startAngle > Math.PI;
+
+          ctx.beginPath();
+          if (isOutside) {
+            ctx.arc(p2.x, p2.y, radius, endAngle, startAngle, true);
+          } else {
+            ctx.arc(p2.x, p2.y, radius, startAngle, endAngle);
+          }
+          ctx.stroke();
+
+          return {
+            x: p2.x + radius * Math.cos(midAngle),
+            y: p2.y + radius * Math.sin(midAngle),
+          };
+        }
+
+        // Function to create an angle label
+        function createAngleLabel(angle, x, y) {
+          const angleLabel = document.createElement("div");
+          angleLabel.className = "angleLabel";
+          angleLabel.style.left = `${x}px`;
+          angleLabel.style.top = `${y}px`;
+          angleLabel.textContent = `${angle.toFixed(2)}°`;
+          document.body.appendChild(angleLabel);
+          return angleLabel;
+        }
+
+        // Function to update all angle labels
+        function updateAngleLabels() {
+          angleLabels.forEach((label) => document.body.removeChild(label));
+          angleLabels.length = 0;
+          for (let i = 0; i < points.length; i++) {
+            const point = points[i];
+            const connectedSegments = segments.filter(
+              (segment) => segment.start === point || segment.end === point
+            );
+            if (connectedSegments.length >= 2) {
+              const p1 =
+                connectedSegments[0].start === point
+                  ? connectedSegments[0].end
+                  : connectedSegments[0].start;
+              const p2 =
+                connectedSegments[1].start === point
+                  ? connectedSegments[1].end
+                  : connectedSegments[1].start;
+              const angle = calculateAngle(p1, point, p2);
+              const arcPosition = drawAngleArc(p1, point, p2); // Draw the angle arc and get its position
+              angleLabels.push(
+                createAngleLabel(
+                  angle,
+                  arcPosition.x + canvas.offsetLeft,
+                  arcPosition.y + canvas.offsetTop
+                )
+              );
+            }
           }
         }
 
@@ -160,74 +264,34 @@
           const mouseX = event.pageX - canvas.offsetLeft;
           const mouseY = event.pageY - canvas.offsetTop;
 
-          if (isShapeClosed()) return; // Do nothing if the shape is closed
-
           const nearestPoint = findNearestPoint(mouseX, mouseY);
 
-          if (isFirstSegment) {
-            if (startPoint === null) {
-              startPoint = { x: mouseX, y: mouseY };
-              // Draw the starting point
-              pointCounter++;
-              const label = String.fromCharCode(65 + pointCounter - 1);
-              points.push(startPoint);
-              drawPointWithLabel(startPoint, label);
-              isDragging = true;
-            }
-          } else {
+          if (nearestPoint && isShapeClosed()) {
+            // Start dragging an existing point if the shape is closed
+            isPointDragging = true;
+            draggedPoint = nearestPoint;
+          } else if (!isShapeClosed()) {
             if (nearestPoint) {
-              // Connect to the nearest point within the snap distance
-              const endPoint = nearestPoint;
-              segments.push({ start: startPoint, end: endPoint });
-              drawSegment(startPoint, endPoint);
-              const midX = (startPoint.x + endPoint.x) / 2 + canvas.offsetLeft;
-              const midY = (startPoint.y + endPoint.y) / 2 + canvas.offsetTop;
-              const distance =
-                Math.sqrt(
-                  Math.pow(endPoint.x - startPoint.x, 2) +
-                    Math.pow(endPoint.y - startPoint.y, 2)
-                ) * PIXEL_TO_CM;
-              distanceLabels.push(createDistanceLabel(distance, midX, midY));
-              startPoint = endPoint;
+              startPoint = nearestPoint;
             } else {
-              // Create a new point and segment
-              const endPoint = { x: mouseX, y: mouseY };
+              startPoint = { x: mouseX, y: mouseY };
+              points.push(startPoint);
+              drawPointWithLabel(
+                startPoint,
+                String.fromCharCode(65 + pointCounter)
+              );
+
               pointCounter++;
-              const label = String.fromCharCode(65 + pointCounter - 1);
-              points.push(endPoint);
-              drawPointWithLabel(endPoint, label);
-              if (pointCounter === 3) {
-                const firstPoint = points[0];
-                const secondPoint = points[1];
-                const distanceToFirst = Math.sqrt(
-                  Math.pow(firstPoint.x - endPoint.x, 2) +
-                    Math.pow(firstPoint.y - endPoint.y, 2)
-                );
-                const distanceToSecond = Math.sqrt(
-                  Math.pow(secondPoint.x - endPoint.x, 2) +
-                    Math.pow(secondPoint.y - endPoint.y, 2)
-                );
-                startPoint =
-                  distanceToFirst < distanceToSecond ? firstPoint : secondPoint;
-                console.log(startPoint);
-              }
-              segments.push({ start: startPoint, end: endPoint });
-              drawSegment(startPoint, endPoint);
-              const midX = (startPoint.x + endPoint.x) / 2 + canvas.offsetLeft;
-              const midY = (startPoint.y + endPoint.y) / 2 + canvas.offsetTop;
-              const distance =
-                Math.sqrt(
-                  Math.pow(endPoint.x - startPoint.x, 2) +
-                    Math.pow(endPoint.y - startPoint.y, 2)
-                ) * PIXEL_TO_CM;
-              distanceLabels.push(createDistanceLabel(distance, midX, midY));
-              startPoint = endPoint;
             }
-            if (isShapeClosed()) {
-              startPoint = null;
+            isDragging = true;
+
+            // Initialize the distanceLabels array with an empty distance label
+            if (!distanceLabels.length) {
+              const midX = startPoint.x + canvas.offsetLeft;
+              const midY = startPoint.y + canvas.offsetTop;
+              distanceLabels.push(createDistanceLabel(0, midX, midY));
             }
           }
-          redraw(); // Redraw all points and segments to maintain the visual state
         });
 
         // Event listener for mouse move
@@ -235,10 +299,31 @@
           if (isDragging && startPoint) {
             const mouseX = event.pageX - canvas.offsetLeft;
             const mouseY = event.pageY - canvas.offsetTop;
-
             redraw();
-
             drawSegment(startPoint, { x: mouseX, y: mouseY });
+            // Update distance label text dynamically
+            const distance =
+              Math.sqrt(
+                Math.pow(mouseX - startPoint.x, 2) +
+                  Math.pow(mouseY - startPoint.y, 2)
+              ) * PIXEL_TO_CM;
+            const midX = (startPoint.x + mouseX) / 2 + canvas.offsetLeft;
+            const midY = (startPoint.y + mouseY) / 2 + canvas.offsetTop;
+            if (distanceLabels.length > 0) {
+              distanceLabels[
+                distanceLabels.length - 1
+              ].textContent = `${distance.toFixed(2)} cm`;
+              distanceLabels[
+                distanceLabels.length - 1
+              ].style.left = `${midX}px`;
+              distanceLabels[distanceLabels.length - 1].style.top = `${midY}px`;
+            }
+          } else if (isPointDragging && draggedPoint) {
+            const mouseX = event.pageX - canvas.offsetLeft;
+            const mouseY = event.pageY - canvas.offsetTop;
+            draggedPoint.x = mouseX;
+            draggedPoint.y = mouseY;
+            redraw();
           }
         });
 
@@ -248,31 +333,37 @@
             const mouseX = event.pageX - canvas.offsetLeft;
             const mouseY = event.pageY - canvas.offsetTop;
             const nearestPoint = findNearestPoint(mouseX, mouseY);
-            if (nearestPoint) {
-              const endPoint = nearestPoint;
-              segments.push({ start: startPoint, end: endPoint });
-              drawSegment(startPoint, endPoint);
-              startPoint = endPoint;
+            let endPoint;
+            if (nearestPoint && nearestPoint !== startPoint) {
+              // Snap to nearest existing point
+              endPoint = nearestPoint;
             } else {
-              const endPoint = { x: mouseX, y: mouseY };
-              segments.push({ start: startPoint, end: endPoint });
-              drawSegment(startPoint, endPoint);
-              pointCounter++;
-              const label = String.fromCharCode(65 + pointCounter - 1);
+              // Create a new end point
+              endPoint = { x: mouseX, y: mouseY };
               points.push(endPoint);
-              drawPointWithLabel(endPoint, label);
-              const midX = (startPoint.x + endPoint.x) / 2 + canvas.offsetLeft;
-              const midY = (startPoint.y + endPoint.y) / 2 + canvas.offsetTop;
-              const distance =
-                Math.sqrt(
-                  Math.pow(endPoint.x - startPoint.x, 2) +
-                    Math.pow(endPoint.y - startPoint.y, 2)
-                ) * PIXEL_TO_CM;
-              distanceLabels.push(createDistanceLabel(distance, midX, midY));
-              startPoint = endPoint;
+              drawPointWithLabel(
+                endPoint,
+                String.fromCharCode(65 + pointCounter)
+              );
+              pointCounter++;
             }
+            segments.push({ start: startPoint, end: endPoint });
+            drawSegment(startPoint, endPoint);
+
+            const midX = (startPoint.x + endPoint.x) / 2 + canvas.offsetLeft;
+            const midY = (startPoint.y + endPoint.y) / 2 + canvas.offsetTop;
+            const distance =
+              Math.sqrt(
+                Math.pow(endPoint.x - startPoint.x, 2) +
+                  Math.pow(endPoint.y - startPoint.y, 2)
+              ) * PIXEL_TO_CM;
+            distanceLabels.push(createDistanceLabel(distance, midX, midY));
+
+            startPoint = null;
             isDragging = false;
-            isFirstSegment = false;
+          } else if (isPointDragging && draggedPoint) {
+            isPointDragging = false;
+            draggedPoint = null;
           }
           redraw(); // Redraw all points and segments to maintain the visual state
         });
@@ -283,6 +374,94 @@
 
         // Initial draw to set up the grid
         redraw();
+
+        // Reset Canvas Button Functionality
+        document
+          .getElementById("resetCanvas")
+          .addEventListener("click", function () {
+            segments.length = 0;
+            points.length = 0;
+            distanceLabels.forEach((label) => document.body.removeChild(label));
+            angleLabels.forEach((label) => document.body.removeChild(label));
+            distanceLabels.length = 0;
+            angleLabels.length = 0;
+            pointCounter = 0;
+            startPoint = null;
+            isDragging = false;
+            isPointDragging = false;
+            draggedPoint = null;
+            redraw();
+          });
+
+        // Undo Button Functionality
+        document
+          .getElementById("undoAction")
+          .addEventListener("click", function () {
+            if (segments.length > 0) {
+              const lastSegment = segments.pop();
+
+              // Remove the last distance label
+              distanceLabels.pop().remove();
+
+              // Check if the last point is only used by the last segment
+              const endPoint = lastSegment.end;
+              const startPoint = lastSegment.start;
+
+              const isEndPointUsedElsewhere = segments.some(
+                (segment) =>
+                  segment.start === endPoint || segment.end === endPoint
+              );
+
+              const isStartPointUsedElsewhere = segments.some(
+                (segment) =>
+                  segment.start === startPoint || segment.end === startPoint
+              );
+
+              if (!isEndPointUsedElsewhere) {
+                // Remove the last point if it's not used in any other segment
+                points.splice(points.indexOf(endPoint), 1);
+                pointCounter--;
+              }
+
+              if (!isStartPointUsedElsewhere) {
+                // Remove the start point if it's not used in any other segment
+                points.splice(points.indexOf(startPoint), 1);
+                pointCounter--;
+              }
+
+              // Redraw everything
+              redraw();
+
+              // Remove angle labels if shape is closed
+              angleLabels.forEach((label) => document.body.removeChild(label));
+              angleLabels.length = 0;
+
+              // Recreate angle labels if the shape is still closed after undo
+              if (isShapeClosed()) {
+                updateAngleLabels();
+              }
+            }
+
+            // If no segments and only one point remains, clear the last point and remove angle labels
+            if (segments.length === 0 && points.length === 1) {
+              points.pop();
+              pointCounter = 0;
+
+              // Clear any angle labels if present
+              angleLabels.forEach((label) => document.body.removeChild(label));
+              angleLabels.length = 0;
+
+              redraw();
+            }
+
+            // If no segments and no points remain, remove all angle labels
+            if (segments.length === 0 && points.length === 0) {
+              angleLabels.forEach((label) => document.body.removeChild(label));
+              angleLabels.length = 0;
+
+              redraw();
+            }
+          });
       };
     </script>
   </body>
