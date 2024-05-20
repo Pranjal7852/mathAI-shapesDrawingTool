@@ -20,7 +20,6 @@
       .angleLabel {
         position: absolute;
         background-color: transparent;
-
         padding: 2px 5px;
         font-size: 12px;
         transform: translate(-50%, 0%);
@@ -31,14 +30,50 @@
       .button-container button {
         margin: 0 5px;
       }
+      #message {
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 5px 10px;
+        border: 1px solid #000;
+        font-size: 18px;
+      }
+      .bold {
+        font-weight: bold;
+        text-decoration: underline;
+      }
+      .highlight {
+        color: red;
+      }
+      footer {
+        margin-top: auto;
+        padding: 10px;
+        text-align: center;
+
+        width: 100%;
+      }
     </style>
   </head>
   <body>
+    <h1>Shape Drawing Tool</h1>
+    <p>
+      This is a simple web-based tool that allows users to draw shapes by
+      dragging on a canvas.
+    </p>
     <div class="button-container">
       <button id="resetCanvas">Reset Canvas</button>
       <button id="undoAction">Undo</button>
     </div>
+
     <canvas id="myCanvas" width="800" height="600"></canvas>
+    <div>
+      <div id="message">
+        To draw a line segment, start dragging from point A to Point B.
+      </div>
+    </div>
+    <footer
+      style="margin-top: auto; padding: 10px; text-align: center; width: 100%"
+    >
+      Made By <a href="https://pranjalgoyal.dev">Pranjal Goyal</a>.
+    </footer>
     <script>
       window.onload = function () {
         const canvas = document.getElementById("myCanvas");
@@ -54,6 +89,7 @@
         const SNAP_DISTANCE = 15; // Distance to snap to existing points
         const PIXEL_TO_CM = 0.0264;
         let pointCounter = 0; // Counter for points
+        const messageDiv = document.getElementById("message");
 
         // Function to draw a line segment
         function drawSegment(start, end) {
@@ -108,8 +144,8 @@
             drawPointWithLabel(points[i], String.fromCharCode(65 + i));
           }
           updateDistanceLabels(); // Ensure distance labels are updated
-
-          updateAngleLabels(); // Ensure angle labels are updated only when shape is closed
+          updateAngleLabels(); // Ensure angle labels are updated
+          updateMessage(); // all  messages are updated as per user action
         }
 
         // Function to find the nearest point within a certain distance
@@ -153,23 +189,21 @@
 
         // Function to update all distance labels
         function updateDistanceLabels() {
-          for (let i = 0; i < segments.length; i++) {
+          for (let i = 0; i < distanceLabels.length; i++) {
             const segment = segments[i];
             const label = distanceLabels[i];
-            if (label) {
-              const midX =
-                (segment.start.x + segment.end.x) / 2 + canvas.offsetLeft;
-              const midY =
-                (segment.start.y + segment.end.y) / 2 + canvas.offsetTop;
-              const distance =
-                Math.sqrt(
-                  Math.pow(segment.end.x - segment.start.x, 2) +
-                    Math.pow(segment.end.y - segment.start.y, 2)
-                ) * PIXEL_TO_CM;
-              label.style.left = `${midX}px`;
-              label.style.top = `${midY}px`;
-              label.textContent = `${distance.toFixed(2)} cm`;
-            }
+            const midX =
+              (segment.start.x + segment.end.x) / 2 + canvas.offsetLeft;
+            const midY =
+              (segment.start.y + segment.end.y) / 2 + canvas.offsetTop;
+            const distance =
+              Math.sqrt(
+                Math.pow(segment.end.x - segment.start.x, 2) +
+                  Math.pow(segment.end.y - segment.start.y, 2)
+              ) * PIXEL_TO_CM;
+            label.style.left = `${midX}px`;
+            label.style.top = `${midY}px`;
+            label.textContent = `${distance.toFixed(2)} cm`;
           }
         }
 
@@ -184,35 +218,38 @@
           return (angle * 180) / Math.PI;
         }
 
+        // Function to determine if the angle is counterclockwise
+        function isCounterClockwise(p1, p2, p3) {
+          return (
+            (p3.x - p2.x) * (p1.y - p2.y) - (p3.y - p2.y) * (p1.x - p2.x) > 0
+          );
+        }
+
         // Function to draw an arc for an angle
-        function drawAngleArc(p1, p2, p3, radius = 20, i) {
+        function drawAngleArc(p1, p2, p3, radius = 20) {
           const angle1 = Math.atan2(p1.y - p2.y, p1.x - p2.x);
           const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
 
-          // Ensure the arc is drawn counterclockwise
-          let startAngle = angle1;
-          let endAngle = angle2;
-          if (startAngle > endAngle) {
+          // Normalize angles to be within the range [0, 2*PI]
+          let startAngle = angle1 >= 0 ? angle1 : 2 * Math.PI + angle1;
+          let endAngle = angle2 >= 0 ? angle2 : 2 * Math.PI + angle2;
+
+          // Ensure the arc is always drawn in the smallest angle
+          if (endAngle < startAngle) {
+            endAngle += 2 * Math.PI;
+          }
+          if (endAngle - startAngle > Math.PI) {
+            [startAngle, endAngle] = [endAngle, startAngle];
             endAngle += 2 * Math.PI;
           }
 
-          // Calculate the midpoint angle
-          const midAngle = (startAngle + endAngle) / 2;
-
-          // Determine the correct direction to ensure the arc is inside
-          if (endAngle - startAngle > Math.PI) {
-            [startAngle, endAngle] = [endAngle, startAngle];
-            startAngle -= 2 * Math.PI;
-          }
-
-          // Draw the arc
           ctx.beginPath();
-          ctx.arc(p2.x, p2.y, radius, startAngle, endAngle);
+          ctx.arc(p2.x, p2.y, radius, startAngle, endAngle, false);
           ctx.stroke();
 
           return {
-            x: p2.x + radius * Math.cos(midAngle),
-            y: p2.y + radius * Math.sin(midAngle),
+            x: p2.x + radius * Math.cos((startAngle + endAngle) / 2),
+            y: p2.y + radius * Math.sin((startAngle + endAngle) / 2),
           };
         }
 
@@ -229,6 +266,7 @@
 
         // Function to update all angle labels
         function updateAngleLabels() {
+          // Clear existing angle labels
           angleLabels.forEach((label) => document.body.removeChild(label));
           angleLabels.length = 0;
           for (let i = 0; i < points.length; i++) {
@@ -237,25 +275,78 @@
               (segment) => segment.start === point || segment.end === point
             );
             if (connectedSegments.length >= 2) {
-              const p1 =
-                connectedSegments[0].start === point
-                  ? connectedSegments[0].end
-                  : connectedSegments[0].start;
-              const p2 =
-                connectedSegments[1].start === point
-                  ? connectedSegments[1].end
-                  : connectedSegments[1].start;
-              const angle = calculateAngle(p1, point, p2);
-              const arcPosition = drawAngleArc(p1, point, p2); // Draw the angle arc and get its position
-              angleLabels.push(
-                createAngleLabel(
-                  angle,
-                  arcPosition.x + canvas.offsetLeft,
-                  arcPosition.y + canvas.offsetTop
-                )
-              );
+              for (let j = 0; j < connectedSegments.length - 1; j++) {
+                const p1 =
+                  connectedSegments[j].start === point
+                    ? connectedSegments[j].end
+                    : connectedSegments[j].start;
+                const p2 =
+                  connectedSegments[j + 1].start === point
+                    ? connectedSegments[j + 1].end
+                    : connectedSegments[j + 1].start;
+                const angle = calculateAngle(p1, point, p2);
+                const arcPosition = drawAngleArc(p1, point, p2); // Draw the angle arc and get its position
+                angleLabels.push(
+                  createAngleLabel(
+                    angle,
+                    arcPosition.x + canvas.offsetLeft,
+                    arcPosition.y + canvas.offsetTop
+                  )
+                );
+              }
             }
           }
+        }
+
+        function updateMessage() {
+          let message = "";
+
+          if (segments.length === 0) {
+            message =
+              "To draw a line segment, start dragging from one point to another.";
+          } else if (isShapeClosed()) {
+            const shapeNames = {
+              3: "Triangle",
+              4: "Quadrilateral",
+              5: "Pentagon",
+              6: "Hexagon",
+              7: "Heptagon",
+              8: "Octagon",
+              9: "Nonagon",
+              10: "Decagon",
+              11: "Hendecagon",
+              12: "Dodecagon",
+              13: "Tridecagon",
+              14: "Tetradecagon",
+              15: "Pentadecagon",
+            };
+            const shapeName =
+              shapeNames[segments.length] || `${segments.length}-gon`;
+            message = `Wow! you have drawn a <span class="bold highlight">${shapeName}</span>`;
+          } else {
+            message = `Nice work, Keep drawing to create a closed shape. Line Segments:${segments.length} Points:${points.length}`;
+          }
+
+          messageDiv.innerHTML = message;
+        }
+
+        function getShapeName(sides) {
+          const shapeNames = {
+            3: "triangle",
+            4: "quadrilateral",
+            5: "pentagon",
+            6: "hexagon",
+            7: "heptagon",
+            8: "octagon",
+            9: "nonagon",
+            10: "decagon",
+            11: "hendecagon",
+            12: "dodecagon",
+            13: "tridecagon",
+            14: "tetradecagon",
+            15: "pentadecagon",
+          };
+          return shapeNames[sides] || `${sides}-sided polygon`;
         }
 
         // Event listener for mouse down
@@ -279,17 +370,9 @@
                 startPoint,
                 String.fromCharCode(65 + pointCounter)
               );
-
               pointCounter++;
             }
             isDragging = true;
-
-            // Initialize the distanceLabels array with an empty distance label
-            if (!distanceLabels.length) {
-              const midX = startPoint.x + canvas.offsetLeft;
-              const midY = startPoint.y + canvas.offsetTop;
-              distanceLabels.push(createDistanceLabel(0, midX, midY));
-            }
           }
         });
 
@@ -300,24 +383,6 @@
             const mouseY = event.pageY - canvas.offsetTop;
             redraw();
             drawSegment(startPoint, { x: mouseX, y: mouseY });
-
-            // Update distance label text dynamically
-            const distance =
-              Math.sqrt(
-                Math.pow(mouseX - startPoint.x, 2) +
-                  Math.pow(mouseY - startPoint.y, 2)
-              ) * PIXEL_TO_CM;
-            const midX = (startPoint.x + mouseX) / 2 + canvas.offsetLeft;
-            const midY = (startPoint.y + mouseY) / 2 + canvas.offsetTop;
-            if (distanceLabels.length > 0) {
-              distanceLabels[
-                distanceLabels.length - 1
-              ].textContent = `${distance.toFixed(2)} cm`;
-              distanceLabels[
-                distanceLabels.length - 1
-              ].style.left = `${midX}px`;
-              distanceLabels[distanceLabels.length - 1].style.top = `${midY}px`;
-            }
           } else if (isPointDragging && draggedPoint) {
             const mouseX = event.pageX - canvas.offsetLeft;
             const mouseY = event.pageY - canvas.offsetTop;
