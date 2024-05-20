@@ -1,5 +1,7 @@
 # Shape Drawing Tool
 
+![image](https://github.com/Pranjal7852/mathAI-shapesDrawingTool/assets/68412756/30f5ab5b-3a74-4145-a67e-d7043a90b252)
+
 ## This is a simple web-based tool that allows users to draw shapes by dragging on a canvas.
 
 ## Features
