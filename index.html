@@ -21,7 +21,7 @@
         position: absolute;
         background-color: transparent;
         padding: 2px 5px;
-        font-size: 12px;
+        font-size: 16px;
         transform: translate(-50%, 0%);
       }
       .button-container {
@@ -187,20 +187,60 @@
           return distanceLabel;
         }
 
-        // Function to update all distance labels
         function updateDistanceLabels() {
+          const offset = 15; // Offset distance for the labels
+
           for (let i = 0; i < distanceLabels.length; i++) {
             const segment = segments[i];
             const label = distanceLabels[i];
-            const midX =
+            let midX =
               (segment.start.x + segment.end.x) / 2 + canvas.offsetLeft;
-            const midY =
-              (segment.start.y + segment.end.y) / 2 + canvas.offsetTop;
+            let midY = (segment.start.y + segment.end.y) / 2 + canvas.offsetTop;
             const distance =
               Math.sqrt(
                 Math.pow(segment.end.x - segment.start.x, 2) +
                   Math.pow(segment.end.y - segment.start.y, 2)
               ) * PIXEL_TO_CM;
+
+            // Apply offset to the label position
+            const angle = Math.atan2(
+              segment.end.y - segment.start.y,
+              segment.end.x - segment.start.x
+            );
+            midX += offset * Math.cos(angle + Math.PI / 2);
+            midY += offset * Math.sin(angle + Math.PI / 2);
+
+            // Adjust position if label overlaps with the shape or other labels
+            let collision = true;
+            while (collision) {
+              collision = false;
+              for (let j = 0; j < distanceLabels.length; j++) {
+                if (j !== i) {
+                  const otherLabel = distanceLabels[j];
+                  const otherRect = otherLabel.getBoundingClientRect();
+                  const labelRect = {
+                    left: midX,
+                    top: midY,
+                    right: midX + otherRect.width,
+                    bottom: midY + otherRect.height,
+                  };
+
+                  if (
+                    labelRect.right > otherRect.left &&
+                    labelRect.left < otherRect.right &&
+                    labelRect.bottom > otherRect.top &&
+                    labelRect.top < otherRect.bottom
+                  ) {
+                    // Collision detected, move the label further
+                    midX += offset * Math.cos(angle + Math.PI / 2);
+                    midY += offset * Math.sin(angle + Math.PI / 2);
+                    collision = true;
+                    break;
+                  }
+                }
+              }
+            }
+
             label.style.left = `${midX}px`;
             label.style.top = `${midY}px`;
             label.textContent = `${distance.toFixed(2)} cm`;
@@ -287,13 +327,48 @@
                     : connectedSegments[j + 1].start;
                 const angle = calculateAngle(p1, point, p2);
                 const arcPosition = drawAngleArc(p1, point, p2); // Draw the angle arc and get its position
-                angleLabels.push(
-                  createAngleLabel(
-                    angle,
-                    arcPosition.x + canvas.offsetLeft,
-                    arcPosition.y + canvas.offsetTop
-                  )
+                // Offset for the label position
+                const labelOffset = 25; // Significantly increased offset
+                const labelAngle = Math.atan2(
+                  arcPosition.y - point.y,
+                  arcPosition.x - point.x
                 );
+
+                // Calculate the initial label position
+                let labelX =
+                  arcPosition.x +
+                  labelOffset * Math.cos(labelAngle) +
+                  canvas.offsetLeft;
+                let labelY =
+                  arcPosition.y +
+                  labelOffset * Math.sin(labelAngle) +
+                  canvas.offsetTop;
+
+                // Check if the label is overlapping with any point and adjust if necessary
+                const checkOverlapAndAdjust = (x, y) => {
+                  for (const pt of points) {
+                    const distance = Math.sqrt(
+                      Math.pow(pt.x + canvas.offsetLeft - x, 2) +
+                        Math.pow(pt.y + canvas.offsetTop - y, 2)
+                    );
+                    if (distance < labelOffset) {
+                      // Adjust position if overlapping
+                      x += labelOffset * Math.cos(labelAngle);
+                      y += labelOffset * Math.sin(labelAngle);
+                    }
+                  }
+                  return { x, y };
+                };
+
+                // Adjust label position to avoid overlap with points
+                const adjustedPosition = checkOverlapAndAdjust(labelX, labelY);
+                labelX = adjustedPosition.x;
+                labelY = adjustedPosition.y;
+
+                // Create and position the angle label
+                angleLabels.push(createAngleLabel(angle, labelX, labelY));
+
+                angleLabels.push(createAngleLabel(angle, labelX, labelY));
               }
             }
           }
@@ -426,13 +501,11 @@
               if (tempAngleLabel) {
                 document.body.removeChild(tempAngleLabel);
               }
-
+              const labelOffset = 25;
+              const labelX = arcPosition.x + canvas.offsetLeft + labelOffset;
+              const labelY = arcPosition.y + canvas.offsetTop - labelOffset;
               // Create and display new temporary angle label
-              tempAngleLabel = createAngleLabel(
-                angle,
-                arcPosition.x + canvas.offsetLeft,
-                arcPosition.y + canvas.offsetTop
-              );
+              tempAngleLabel = createAngleLabel(angle, labelX, labelY);
               document.body.appendChild(tempAngleLabel);
             }
           } else if (isPointDragging && draggedPoint) {
