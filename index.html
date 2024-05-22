@@ -21,7 +21,7 @@
         position: absolute;
         background-color: transparent;
         padding: 2px 5px;
-        font-size: 16px;
+        font-size: 12px;
         transform: translate(-50%, 0%);
       }
       .button-container {
@@ -72,7 +72,7 @@
     <footer
       style="margin-top: auto; padding: 10px; text-align: center; width: 100%"
     >
-      Made By <a href="https://pranjalgoyal.site">Pranjal Goyal</a>.
+      Made By <a href="https://pranjalgoyal.dev">Pranjal Goyal</a>.
     </footer>
     <script>
       window.onload = function () {
@@ -187,6 +187,7 @@
           return distanceLabel;
         }
 
+        // Function to update all distance labels
         function updateDistanceLabels() {
           const offset = 15; // Offset distance for the labels
 
@@ -255,11 +256,6 @@
           const magnitude1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
           const magnitude2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
           const angle = Math.acos(dotProduct / (magnitude1 * magnitude2));
-
-          const crossProduct = v1.x * v2.y - v1.y * v2.x;
-          if (crossProduct < 0) {
-            return 360 - (angle * 180) / Math.PI;
-          }
           return (angle * 180) / Math.PI;
         }
 
@@ -279,8 +275,12 @@
           let startAngle = angle1 >= 0 ? angle1 : 2 * Math.PI + angle1;
           let endAngle = angle2 >= 0 ? angle2 : 2 * Math.PI + angle2;
 
-          // Ensure the arc is drawn correctly for angles greater than 180 degrees
+          // Ensure the arc is always drawn in the smallest angle
           if (endAngle < startAngle) {
+            endAngle += 2 * Math.PI;
+          }
+          if (endAngle - startAngle > Math.PI) {
+            [startAngle, endAngle] = [endAngle, startAngle];
             endAngle += 2 * Math.PI;
           }
 
@@ -501,11 +501,13 @@
               if (tempAngleLabel) {
                 document.body.removeChild(tempAngleLabel);
               }
-              const labelOffset = 25;
-              const labelX = arcPosition.x + canvas.offsetLeft + labelOffset;
-              const labelY = arcPosition.y + canvas.offsetTop - labelOffset;
+
               // Create and display new temporary angle label
-              tempAngleLabel = createAngleLabel(angle, labelX, labelY);
+              tempAngleLabel = createAngleLabel(
+                angle,
+                arcPosition.x + canvas.offsetLeft,
+                arcPosition.y + canvas.offsetTop
+              );
               document.body.appendChild(tempAngleLabel);
             }
           } else if (isPointDragging && draggedPoint) {
