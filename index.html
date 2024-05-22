@@ -429,25 +429,6 @@
           messageDiv.innerHTML = message;
         }
 
-        function getShapeName(sides) {
-          const shapeNames = {
-            3: "triangle",
-            4: "quadrilateral",
-            5: "pentagon",
-            6: "hexagon",
-            7: "heptagon",
-            8: "octagon",
-            9: "nonagon",
-            10: "decagon",
-            11: "hendecagon",
-            12: "dodecagon",
-            13: "tridecagon",
-            14: "tetradecagon",
-            15: "pentadecagon",
-          };
-          return shapeNames[sides] || `${sides}-sided polygon`;
-        }
-
         // Function to calculate the perimeter
         function calculatePerimeter() {
           let perimeter = 0;
