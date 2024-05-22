@@ -62,13 +62,13 @@
       <button id="resetCanvas">Reset Canvas</button>
       <button id="undoAction">Undo</button>
     </div>
-
-    <canvas id="myCanvas" width="800" height="600"></canvas>
     <div>
       <div id="message">
         To draw a line segment, start dragging from point A to Point B.
       </div>
     </div>
+    <canvas id="myCanvas" width="800" height="600"></canvas>
+
     <footer
       style="margin-top: auto; padding: 10px; text-align: center; width: 100%"
     >
@@ -379,7 +379,7 @@
 
           if (segments.length === 0) {
             message =
-              "To draw a line segment, start dragging from one point to another.";
+              'To draw a line segment, start dragging from one point to another to create a line segment <span class="highlight bold">AB</span>.';
           } else if (isShapeClosed()) {
             const shapeNames = {
               3: "Triangle",
@@ -396,11 +396,26 @@
               14: "Tetradecagon",
               15: "Pentadecagon",
             };
+            const lastSegment = segments[segments.length - 1];
+            const startPointLabel = String.fromCharCode(
+              65 + points.indexOf(lastSegment.start)
+            );
+            const endPointLabel = String.fromCharCode(
+              65 + points.indexOf(lastSegment.end)
+            );
             const shapeName =
               shapeNames[segments.length] || `${segments.length}-gon`;
-            message = `Wow! you have drawn a <span class="bold highlight">${shapeName}</span>`;
+            const { expression } = calculatePerimeter();
+            const { perimeter } = calculatePerimeter();
+            const { area } = calculateArea();
+            message = `Wow! you have drawn a <span class="bold highlight">${shapeName}</span>.\nThe perimeter of the ${shapeName} is  <span class='highlight'>${expression} = ${perimeter.toFixed(
+              2
+            )} cm</span> and its area is <span class='highlight'>${area.toFixed(
+              2
+            )} cm<sup>2</sup></span>`;
           } else {
-            message = `Nice work, Keep drawing to create a closed shape. Line Segments:${segments.length} Points:${points.length}`;
+            const lastPointLabel = String.fromCharCode(65 + points.length - 1);
+            message = `Now drag from <span class="highlight bold">point ${lastPointLabel}</span> to create a new segment..`;
           }
 
           messageDiv.innerHTML = message;
@@ -425,6 +440,57 @@
           return shapeNames[sides] || `${sides}-sided polygon`;
         }
 
+        // Function to calculate the perimeter
+        function calculatePerimeter() {
+          let perimeter = 0;
+          let expression = "";
+
+          for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            const distance =
+              Math.sqrt(
+                Math.pow(segment.end.x - segment.start.x, 2) +
+                  Math.pow(segment.end.y - segment.start.y, 2)
+              ) * PIXEL_TO_CM;
+            perimeter += distance;
+
+            const pointA = String.fromCharCode(65 + i);
+            const pointB = String.fromCharCode(65 + ((i + 1) % points.length));
+            expression += `${pointA}${pointB}(${distance.toFixed(2)} cm)`;
+
+            if (i < segments.length - 1) {
+              expression += " + ";
+            }
+          }
+
+          return { perimeter, expression };
+        }
+
+        // Function to calculate the area using the Shoelace formula
+        function calculateArea() {
+          let area = 0;
+          let expression = "";
+
+          for (let i = 0; i < points.length; i++) {
+            const currentPoint = points[i];
+            const nextPoint = points[(i + 1) % points.length];
+
+            const term1 = currentPoint.x * nextPoint.y;
+            const term2 = currentPoint.y * nextPoint.x;
+            area += term1 - term2;
+
+            const pointA = String.fromCharCode(65 + i);
+            const pointB = String.fromCharCode(65 + ((i + 1) % points.length));
+            expression += `(${pointA}.x * ${pointB}.y - ${pointA}.y * ${pointB}.x)`;
+
+            if (i < points.length - 1) {
+              expression += " + ";
+            }
+          }
+
+          area = (Math.abs(area) / 2) * PIXEL_TO_CM * PIXEL_TO_CM;
+          return { area, expression };
+        }
         // Event listener for mouse down
         canvas.addEventListener("mousedown", function (event) {
           const mouseX = event.pageX - canvas.offsetLeft;
