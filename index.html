@@ -72,7 +72,7 @@
     <footer
       style="margin-top: auto; padding: 10px; text-align: center; width: 100%"
     >
-      Made By <a href="https://pranjalgoyal.dev">Pranjal Goyal</a>.
+      Made By <a href="https://pranjalgoyal.site">Pranjal Goyal</a>.
     </footer>
     <script>
       window.onload = function () {
@@ -215,6 +215,11 @@
           const magnitude1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
           const magnitude2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
           const angle = Math.acos(dotProduct / (magnitude1 * magnitude2));
+
+          const crossProduct = v1.x * v2.y - v1.y * v2.x;
+          if (crossProduct < 0) {
+            return 360 - (angle * 180) / Math.PI;
+          }
           return (angle * 180) / Math.PI;
         }
 
@@ -234,12 +239,8 @@
           let startAngle = angle1 >= 0 ? angle1 : 2 * Math.PI + angle1;
           let endAngle = angle2 >= 0 ? angle2 : 2 * Math.PI + angle2;
 
-          // Ensure the arc is always drawn in the smallest angle
+          // Ensure the arc is drawn correctly for angles greater than 180 degrees
           if (endAngle < startAngle) {
-            endAngle += 2 * Math.PI;
-          }
-          if (endAngle - startAngle > Math.PI) {
-            [startAngle, endAngle] = [endAngle, startAngle];
             endAngle += 2 * Math.PI;
           }
 
@@ -376,6 +377,9 @@
           }
         });
 
+        let tempAngleLabel = null;
+        let tempDistanceLabel = null;
+
         // Event listener for mouse move
         canvas.addEventListener("mousemove", function (event) {
           if (isDragging && startPoint) {
@@ -383,6 +387,54 @@
             const mouseY = event.pageY - canvas.offsetTop;
             redraw();
             drawSegment(startPoint, { x: mouseX, y: mouseY });
+
+            // Calculate and display distance
+            const tempEndPoint = { x: mouseX, y: mouseY };
+            const midX =
+              (startPoint.x + tempEndPoint.x) / 2 + canvas.offsetLeft;
+            const midY = (startPoint.y + tempEndPoint.y) / 2 + canvas.offsetTop;
+            const distance =
+              Math.sqrt(
+                Math.pow(tempEndPoint.x - startPoint.x, 2) +
+                  Math.pow(tempEndPoint.y - startPoint.y, 2)
+              ) * PIXEL_TO_CM;
+
+            // Remove previous temporary distance label
+            if (tempDistanceLabel) {
+              document.body.removeChild(tempDistanceLabel);
+            }
+
+            // Create and display new temporary distance label
+            tempDistanceLabel = createDistanceLabel(distance, midX, midY);
+            document.body.appendChild(tempDistanceLabel);
+
+            // Calculate and display angle if intersecting segments are found
+            if (segments.length > 0) {
+              const lastSegment = segments[segments.length - 1];
+              const angle = calculateAngle(
+                lastSegment.start,
+                lastSegment.end,
+                tempEndPoint
+              );
+              const arcPosition = drawAngleArc(
+                lastSegment.start,
+                lastSegment.end,
+                tempEndPoint
+              ); // Draw the angle arc and get its position
+
+              // Remove previous temporary angle label
+              if (tempAngleLabel) {
+                document.body.removeChild(tempAngleLabel);
+              }
+
+              // Create and display new temporary angle label
+              tempAngleLabel = createAngleLabel(
+                angle,
+                arcPosition.x + canvas.offsetLeft,
+                arcPosition.y + canvas.offsetTop
+              );
+              document.body.appendChild(tempAngleLabel);
+            }
           } else if (isPointDragging && draggedPoint) {
             const mouseX = event.pageX - canvas.offsetLeft;
             const mouseY = event.pageY - canvas.offsetTop;
@@ -424,12 +476,28 @@
               ) * PIXEL_TO_CM;
             distanceLabels.push(createDistanceLabel(distance, midX, midY));
 
+            // Update angle labels if segments intersect
+            if (segments.length > 1) {
+              updateAngleLabels();
+            }
+
             startPoint = null;
             isDragging = false;
           } else if (isPointDragging && draggedPoint) {
             isPointDragging = false;
             draggedPoint = null;
           }
+
+          // Remove temporary distance and angle labels
+          if (tempDistanceLabel) {
+            document.body.removeChild(tempDistanceLabel);
+            tempDistanceLabel = null;
+          }
+          if (tempAngleLabel) {
+            document.body.removeChild(tempAngleLabel);
+            tempAngleLabel = null;
+          }
+
           redraw(); // Redraw all points and segments to maintain the visual state
         });
 
